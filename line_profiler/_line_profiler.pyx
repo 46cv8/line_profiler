@@ -85,6 +85,7 @@ cdef struct LineTime:
     int64 code
     int lineno
     PY_LONG_LONG total_time
+    PY_LONG_LONG max_time
     long nhits
     
 cdef struct LastTime:
@@ -145,7 +146,7 @@ class LineStats(object):
     ----------
     timings : dict
         Mapping from (filename, first_lineno, function_name) of the profiled
-        function to a list of (lineno, nhits, total_time) tuples for each
+        function to a list of (lineno, nhits, max_time, total_time) tuples for each
         profiled line. total_time is an integer in the native units of the
         timer.
     unit : float
@@ -341,14 +342,16 @@ cdef class LineProfiler:
 
             # Merge duplicate line numbers, which occur for branch entrypoints like `if`
             nhits_by_lineno = {}
+            max_time_by_lineno = {}
             total_time_by_lineno = {}
 
             for line_dict in entries:
-                 _, lineno, total_time, nhits = line_dict.values()
+                 _, lineno, total_time, max_time, nhits = line_dict.values()
                  nhits_by_lineno[lineno] = nhits_by_lineno.setdefault(lineno, 0) + nhits
+                 max_time_by_lineno[lineno] = max(total_time_by_lineno.setdefault(lineno, 0), max_time)
                  total_time_by_lineno[lineno] = total_time_by_lineno.setdefault(lineno, 0) + total_time
 
-            entries = [(lineno, nhits, total_time_by_lineno[lineno]) for lineno, nhits in nhits_by_lineno.items()]
+            entries = [(lineno, nhits, max_time_by_lineno[lineno], total_time_by_lineno[lineno]) for lineno, nhits in nhits_by_lineno.items()]
             entries.sort()
 
             # NOTE: v4.x may produce more than one entry per line. For example:
@@ -375,6 +378,7 @@ PyObject *arg):
     cdef LastTime old
     cdef int key
     cdef PY_LONG_LONG time
+    cdef PY_LONG_LONG time_lapsed
     cdef int64 code_hash
     cdef int64 block_hash
     cdef unordered_map[int64, LineTime] line_entries
@@ -393,9 +397,12 @@ PyObject *arg):
                 line_entries = self._c_code_map[code_hash]
                 key = old.f_lineno
                 if not line_entries.count(key):
-                    self._c_code_map[code_hash][key] = LineTime(code_hash, key, 0, 0)
+                    self._c_code_map[code_hash][key] = LineTime(code_hash, key, 0, 0, 0)
                 self._c_code_map[code_hash][key].nhits += 1
-                self._c_code_map[code_hash][key].total_time += time - old.time
+                time_lapsed = time - old.time
+                self._c_code_map[code_hash][key].total_time += time_lapsed
+                if time_lapsed > self._c_code_map[code_hash][key].max_time:
+                    self._c_code_map[code_hash][key].max_time = time_lapsed
             if what == PyTrace_LINE:
                 # Get the time again. This way, we don't record much time wasted
                 # in this function.

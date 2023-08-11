@@ -223,7 +223,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         func_name (str): name of profiled function
 
         timings (List[Tuple[int, int, float]]):
-            measurements for each line (lineno, nhits, time).
+            measurements for each line (lineno, nhits, max_time, time).
 
         unit (float):
             The number of seconds used as the cython LineProfiler's unit.
@@ -267,7 +267,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     if stream is None:
         stream = sys.stdout
 
-    total_time = sum(t[2] for t in timings)
+    total_time = sum(t[3] for t in timings)
     if stripzeros and total_time == 0:
         return
 
@@ -310,6 +310,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     default_column_sizes = {
         'line': 6,
         'hits': 9,
+        'max_time': 12,
         'time': 12,
         'perhit': 8,
         'percent': 8,
@@ -319,11 +320,15 @@ def show_func(filename, start_lineno, func_name, timings, unit,
 
     # Loop over each line to determine better column formatting.
     # Fallback to scientific notation if columns are larger than a threshold.
-    for lineno, nhits, time in timings:
+    for lineno, nhits, max_time, time in timings:
         if total_time == 0:  # Happens rarely on empty function
             percent = ''
         else:
             percent = '%5.1f' % (100 * time / total_time)
+
+        max_time_disp = '%5.1f' % (max_time * scalar)
+        if len(max_time_disp) > default_column_sizes['max_time']:
+            max_time_disp = '%5.1g' % (max_time * scalar)
 
         time_disp = '%5.1f' % (time * scalar)
         if len(time_disp) > default_column_sizes['time']:
@@ -337,25 +342,27 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         if len(nhits_disp) > default_column_sizes['hits']:
             nhits_disp = '%g' % nhits
 
-        display[lineno] = (nhits_disp, time_disp, perhit_disp, percent)
+        display[lineno] = (nhits_disp, max_time_disp, time_disp, perhit_disp, percent)
 
     # Expand column sizes if the numbers are large.
     column_sizes = default_column_sizes.copy()
     if len(display):
         max_hitlen = max(len(t[0]) for t in display.values())
-        max_timelen = max(len(t[1]) for t in display.values())
-        max_perhitlen = max(len(t[2]) for t in display.values())
+        max_maxtimelen = max(len(t[1]) for t in display.values())
+        max_timelen = max(len(t[2]) for t in display.values())
+        max_perhitlen = max(len(t[3]) for t in display.values())
         column_sizes['hits'] = max(column_sizes['hits'], max_hitlen)
+        column_sizes['max_time'] = max(column_sizes['max_time'], max_maxtimelen)
         column_sizes['time'] = max(column_sizes['time'], max_timelen)
         column_sizes['perhit'] = max(column_sizes['perhit'], max_perhitlen)
 
-    col_order = ['line', 'hits', 'time', 'perhit', 'percent']
+    col_order = ['line', 'hits', 'time', 'perhit', 'max_time', 'percent']
     lhs_template = ' '.join(['%' + str(column_sizes[k]) + 's' for k in col_order])
     template = lhs_template + '  %-s'
 
     linenos = range(start_lineno, start_lineno + len(sublines))
     empty = ('', '', '', '')
-    header = ('Line #', 'Hits', 'Time', 'Per Hit', '% Time', 'Line Contents')
+    header = ('Line #', 'Hits', 'Time', 'Per Hit', 'Max Time', '% Time', 'Line Contents')
     header = template % header
     stream.write('\n')
     stream.write(header)
@@ -368,8 +375,8 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         lhs_lines = []
         rhs_lines = []
         for lineno, line in zip(linenos, sublines):
-            nhits, time, per_hit, percent = display.get(lineno, empty)
-            txt = lhs_template % (lineno, nhits, time, per_hit, percent)
+            nhits, max_time, time, per_hit, percent = display.get(lineno, empty)
+            txt = lhs_template % (lineno, nhits, time, per_hit, max_time, percent)
             rhs_lines.append(line.rstrip('\n').rstrip('\r'))
             lhs_lines.append(txt)
 
@@ -406,8 +413,8 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         stream.write('\n')
     else:
         for lineno, line in zip(linenos, sublines):
-            nhits, time, per_hit, percent = display.get(lineno, empty)
-            txt = template % (lineno, nhits, time, per_hit, percent,
+            nhits, max_time, time, per_hit, percent = display.get(lineno, empty)
+            txt = template % (lineno, nhits, time, per_hit, max_time, percent,
                               line.rstrip('\n').rstrip('\r'))
             stream.write(txt)
             stream.write('\n')
@@ -443,7 +450,7 @@ def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False,
     if summarize:
         # Summarize the total time for each function
         for (fn, lineno, name), timings in stats_order:
-            total_time = sum(t[2] for t in timings) * unit
+            total_time = sum(t[3] for t in timings) * unit
             line = '%6.2f seconds - %s:%s - %s\n' % (total_time, fn, lineno, name)
             stream.write(line)
 
