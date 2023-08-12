@@ -193,6 +193,7 @@ cdef class LineProfiler:
         self.dupes_map = {}
         self.timer_unit = hpTimerUnit()
         self.threaddata = threading.local()
+        self.__global_enable = False
 
         for func in functions:
             self.add_function(func)
@@ -242,6 +243,16 @@ cdef class LineProfiler:
 
         self.functions.append(func)
 
+    property global_enable:
+        def __get__(self):
+            return self.__global_enable
+        def __set__(self, value):
+            if self.threaddata.enable_count > 0 and self.__global_enable is False and value is True:
+                self.enable()
+            elif self.threaddata.enable_count > 0 and self.__global_enable is True and value is False:
+                self.disable()
+            self.__global_enable = value    
+
     property enable_count:
         def __get__(self):
             if not hasattr(self.threaddata, 'enable_count'):
@@ -254,7 +265,8 @@ cdef class LineProfiler:
         """ Enable the profiler if it hasn't been enabled before.
         """
         if self.enable_count == 0:
-            self.enable()
+            if self.__global_enable:
+                self.enable()
         self.enable_count += 1
 
     def disable_by_count(self):
@@ -264,7 +276,14 @@ cdef class LineProfiler:
         if self.enable_count > 0:
             self.enable_count -= 1
             if self.enable_count == 0:
-                self.disable()
+                if self.__global_enable:
+                    self.disable()
+                
+    def clear_stats(self):
+        for code_hash, code_map_hash in self._c_code_map:
+            self._c_code_map[code_hash].clear()
+            #for key, old_value in self._c_code_map[code_hash]:
+            #    self._c_code_map[code_hash][key] = LineTime(code_hash, key, 0, 0, 0)
 
     def __enter__(self):
         self.enable_by_count()
@@ -283,7 +302,7 @@ cdef class LineProfiler:
         return <dict>self._c_code_map
         
     @property
-    def c_last_time(self):
+    def c_laest_time(self):
         return (<dict>self._c_last_time)[threading.get_ident()]
 
     @property

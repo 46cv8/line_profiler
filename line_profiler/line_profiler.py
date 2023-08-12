@@ -312,7 +312,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         'hits': 9,
         'max_time': 12,
         'time': 12,
-        'perhit': 8,
+        'perhit': 12,
         'percent': 8,
     }
 
@@ -361,7 +361,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     template = lhs_template + '  %-s'
 
     linenos = range(start_lineno, start_lineno + len(sublines))
-    empty = ('', '', '', '')
+    empty = ('', '', '', '', '')
     header = ('Line #', 'Hits', 'Time', 'Per Hit', 'Max Time', '% Time', 'Line Contents')
     header = template % header
     stream.write('\n')
