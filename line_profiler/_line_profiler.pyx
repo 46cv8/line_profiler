@@ -1,6 +1,22 @@
-#cython: language_level=3
+# cython: language_level=3
+# cython: infer_types=True
+# cython: legacy_implicit_noexcept=True
+# distutils: language=c++
+# distutils: include_dirs = python25.pxd
+r"""
+This is the Cython backend used in :py:mod:`line_profiler.line_profiler`.
+
+Ignore:
+    # Standalone compile instructions for developers
+    # Assuming the cwd is the repo root.
+    cythonize --annotate --inplace \
+        ./line_profiler/_line_profiler.pyx \
+        ./line_profiler/timers.c \
+        ./line_profiler/unset_trace.c
+"""
 from .python25 cimport PyFrameObject, PyObject, PyStringObject
 from sys import byteorder
+import sys
 cimport cython
 from cpython.version cimport PY_VERSION_HEX
 from libc.stdint cimport int64_t
@@ -42,7 +58,6 @@ cdef extern from "Python.h":
       #include "pyframe.h"
     #endif
     """
-    
     ctypedef struct PyFrameObject
     ctypedef struct PyCodeObject
     ctypedef long long PY_LONG_LONG
@@ -74,6 +89,9 @@ cdef extern from "Python.h":
     cdef int PyTrace_C_EXCEPTION
     cdef int PyTrace_C_RETURN
 
+    cdef int PyFrame_GetLineNumber(PyFrameObject *frame)
+    
+
 cdef extern from "timers.c":
     PY_LONG_LONG hpTimer()
     double hpTimerUnit()
@@ -87,7 +105,7 @@ cdef struct LineTime:
     PY_LONG_LONG total_time
     PY_LONG_LONG max_time
     long nhits
-    
+
 cdef struct LastTime:
     int f_lineno
     PY_LONG_LONG time
@@ -104,8 +122,8 @@ cdef inline int64 compute_line_hash(uint64 block_hash, uint64 linenum):
     return block_hash ^ linenum
 
 def label(code):
-    """ Return a (filename, first_lineno, func_name) tuple for a given code
-    object.
+    """
+    Return a (filename, first_lineno, func_name) tuple for a given code object.
 
     This is the same labelling as used by the cProfile module in Python 2.5.
     """
@@ -140,17 +158,19 @@ cpdef _code_replace(func, co_code):
 
 # Note: this is a regular Python class to allow easy pickling.
 class LineStats(object):
-    """ Object to encapsulate line-profile statistics.
+    """
+    Object to encapsulate line-profile statistics.
 
-    Attributes
-    ----------
-    timings : dict
-        Mapping from (filename, first_lineno, function_name) of the profiled
-        function to a list of (lineno, nhits, max_time, total_time) tuples for each
-        profiled line. total_time is an integer in the native units of the
-        timer.
-    unit : float
-        The number of seconds per timer unit.
+    Attributes:
+
+        timings (dict):
+            Mapping from (filename, first_lineno, function_name) of the
+            profiled function to a list of (lineno, nhits, max_time, total_time) tuples
+            for each profiled line. total_time is an integer in the native
+            units of the timer.
+
+        unit (float):
+            The number of seconds per timer unit.
     """
     def __init__(self, timings, unit):
         self.timings = timings
@@ -158,8 +178,11 @@ class LineStats(object):
 
 
 cdef class LineProfiler:
-    """ 
+    """
     Time the execution of lines of Python code.
+
+    This is the Cython base class for
+    :class:`line_profiler.line_profiler.LineProfiler`.
 
     Example:
         >>> import copy
@@ -221,7 +244,24 @@ cdef class LineProfiler:
         if code.co_code in self.dupes_map:
             self.dupes_map[code.co_code] += [code]
             # code hash already exists, so there must be a duplicate function. add no-op
-            co_code = code.co_code + (9).to_bytes(1, byteorder=byteorder) * (len(self.dupes_map[code.co_code]))
+            # co_code = code.co_code + (9).to_bytes(1, byteorder=byteorder) * (len(self.dupes_map[code.co_code]))
+
+            """
+            # Code to lookup the NOP opcode, which we will just hard code here
+            # instead of looking it up. Perhaps do a global lookup in the
+            # future.
+            NOP_VALUE: int = opcode.opmap['NOP']
+            """
+            NOP_VALUE: int = 9
+            # Op code should be 2 bytes as stated in
+            # https://docs.python.org/3/library/dis.html
+            # if sys.version_info[0:2] >= (3, 11):
+            NOP_BYTES = NOP_VALUE.to_bytes(2, byteorder=byteorder)
+            # else:
+            #     NOP_BYTES = NOP_VALUE.to_bytes(1, byteorder=byteorder)
+
+            co_padding = NOP_BYTES * (len(self.dupes_map[code.co_code]) + 1)
+            co_code = code.co_code + co_padding
             CodeType = type(code)
             code = _code_replace(func, co_code=co_code)
             try:
@@ -293,16 +333,16 @@ cdef class LineProfiler:
 
     def enable(self):
         PyEval_SetTrace(python_trace_callback, self)
-        
+
     @property
     def c_code_map(self):
         """
         A Python view of the internal C lookup table.
         """
         return <dict>self._c_code_map
-        
+
     @property
-    def c_laest_time(self):
+    def c_last_time(self):
         return (<dict>self._c_last_time)[threading.get_ident()]
 
     @property
@@ -347,13 +387,13 @@ cdef class LineProfiler:
         unset_trace()
 
     def get_stats(self):
-        """ Return a LineStats object containing the timings.
         """
-        cdef dict cmap
-        
+        Return a LineStats object containing the timings.
+        """
+        cdef dict cmap = self._c_code_map
+
         stats = {}
         for code in self.code_hash_map:
-            cmap = self._c_code_map
             entries = []
             for entry in self.code_hash_map[code]:
                 entries += list(cmap[entry].values())
@@ -387,9 +427,13 @@ cdef class LineProfiler:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef int python_trace_callback(object self_, PyFrameObject *py_frame, int what,
-PyObject *arg):
-    """ The PyEval_SetTrace() callback.
+cdef extern int python_trace_callback(object self_, PyFrameObject *py_frame,
+                                      int what, PyObject *arg):
+    """
+    The PyEval_SetTrace() callback.
+
+    References:
+       https://github.com/python/cpython/blob/de2a4036/Include/cpython/pystate.h#L16 
     """
     cdef LineProfiler self
     cdef object code
@@ -401,13 +445,17 @@ PyObject *arg):
     cdef int64 code_hash
     cdef int64 block_hash
     cdef unordered_map[int64, LineTime] line_entries
+    cdef uint64 linenum
 
     self = <LineProfiler>self_
 
     if what == PyTrace_LINE or what == PyTrace_RETURN:
         # Normally we'd need to DECREF the return from get_frame_code, but Cython does that for us
         block_hash = hash(get_frame_code(py_frame))
-        code_hash = compute_line_hash(block_hash, py_frame.f_lineno)
+
+        linenum = PyFrame_GetLineNumber(py_frame)
+        code_hash = compute_line_hash(block_hash, linenum)
+        
         if self._c_code_map.count(code_hash):
             time = hpTimer()
             ident = threading.get_ident()
@@ -425,7 +473,7 @@ PyObject *arg):
             if what == PyTrace_LINE:
                 # Get the time again. This way, we don't record much time wasted
                 # in this function.
-                self._c_last_time[ident][block_hash] = LastTime(py_frame.f_lineno, hpTimer())
+                self._c_last_time[ident][block_hash] = LastTime(linenum, hpTimer())
             elif self._c_last_time[ident].count(block_hash):
                 # We are returning from a function, not executing a line. Delete
                 # the last_time record. It may have already been deleted if we

@@ -1,15 +1,33 @@
 import tempfile
-import pathlib
-import shutil
 import sys
 import os
-import subprocess
-import textwrap
-from subprocess import PIPE
+import ubelt as ub
+
+
+def test_simple_explicit_nonglobal_usage():
+    """
+    python -c "from test_explicit_profile import *; test_simple_explicit_nonglobal_usage()"
+    """
+    from line_profiler import LineProfiler
+    profiler = LineProfiler()
+
+    def func(a):
+        return a + 1
+
+    profiled_func = profiler(func)
+
+    # Run Once
+    profiled_func(1)
+
+    lstats = profiler.get_stats()
+    print(f'lstats.timings={lstats.timings}')
+    print(f'lstats.unit={lstats.unit}')
+    print(f'profiler.code_hash_map={profiler.code_hash_map}')
+    profiler.print_stats()
 
 
 def _demo_explicit_profile_script():
-    return textwrap.dedent(
+    return ub.codeblock(
         '''
         from line_profiler import profile
 
@@ -20,29 +38,28 @@ def _demo_explicit_profile_script():
                 a, b = b, a + b
 
         fib(10)
-        ''').strip()
+        ''')
 
 
 def test_explicit_profile_with_nothing():
     """
     Test that no profiling happens when we dont request it.
     """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
-    with ChDir(temp_dpath):
+    temp_dpath = ub.Path(tempfile.mkdtemp())
+    with ub.ChDir(temp_dpath):
 
-        script_fpath = pathlib.Path('script.py')
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(_demo_explicit_profile_script())
 
         args = [sys.executable, os.fspath(script_fpath)]
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              universal_newlines=True)
+        proc = ub.cmd(args)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
     assert not (temp_dpath / 'profile_output.txt').exists()
     assert not (temp_dpath / 'profile_output.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
 def test_explicit_profile_with_environ_on():
@@ -50,52 +67,48 @@ def test_explicit_profile_with_environ_on():
     Test that explicit profiling is enabled when we specify the LINE_PROFILE
     enviornment variable.
     """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
+    temp_dpath = ub.Path(tempfile.mkdtemp())
     env = os.environ.copy()
     env['LINE_PROFILE'] = '1'
 
-    with ChDir(temp_dpath):
+    with ub.ChDir(temp_dpath):
 
-        script_fpath = pathlib.Path('script.py')
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(_demo_explicit_profile_script())
 
         args = [sys.executable, os.fspath(script_fpath)]
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              env=env,
-                              universal_newlines=True)
+        proc = ub.cmd(args, env=env)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
     assert (temp_dpath / 'profile_output.txt').exists()
     assert (temp_dpath / 'profile_output.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
 def test_explicit_profile_with_environ_off():
     """
     When LINE_PROFILE is falsy, profiling should not run.
     """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
+    temp_dpath = ub.Path(tempfile.mkdtemp())
     env = os.environ.copy()
     env['LINE_PROFILE'] = '0'
 
-    with ChDir(temp_dpath):
+    with ub.ChDir(temp_dpath):
 
-        script_fpath = pathlib.Path('script.py')
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(_demo_explicit_profile_script())
 
         args = [sys.executable, os.fspath(script_fpath)]
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              env=env,
-                              universal_newlines=True)
+        proc = ub.cmd(args)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
     assert not (temp_dpath / 'profile_output.txt').exists()
     assert not (temp_dpath / 'profile_output.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
 def test_explicit_profile_with_cmdline():
@@ -105,24 +118,23 @@ def test_explicit_profile_with_cmdline():
 
     xdoctest ~/code/line_profiler/tests/test_explicit_profile.py test_explicit_profile_with_environ
     """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
+    temp_dpath = ub.Path(tempfile.mkdtemp())
 
-    with ChDir(temp_dpath):
+    with ub.ChDir(temp_dpath):
 
-        script_fpath = pathlib.Path('script.py')
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(_demo_explicit_profile_script())
 
         args = [sys.executable, os.fspath(script_fpath), '--line-profile']
         print(f'args={args}')
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              universal_newlines=True)
+        proc = ub.cmd(args)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
     assert (temp_dpath / 'profile_output.txt').exists()
     assert (temp_dpath / 'profile_output.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
 def test_explicit_profile_with_kernprof():
@@ -130,36 +142,43 @@ def test_explicit_profile_with_kernprof():
     Test that explicit profiling works when using kernprof. In this case
     we should get as many output files.
     """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
+    temp_dpath = ub.Path(tempfile.mkdtemp())
 
-    with ChDir(temp_dpath):
-
-        script_fpath = pathlib.Path('script.py')
+    with ub.ChDir(temp_dpath):
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(_demo_explicit_profile_script())
-
         args = [sys.executable, '-m', 'kernprof', '-l', os.fspath(script_fpath)]
-        print(f'args={args}')
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              universal_newlines=True)
+        proc = ub.cmd(args)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
     assert not (temp_dpath / 'profile_output.txt').exists()
     assert (temp_dpath / 'script.py.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
 def test_explicit_profile_with_in_code_enable():
     """
     Test that the user can enable the profiler explicitly from within their
     code.
-    """
-    temp_dpath = pathlib.Path(tempfile.mkdtemp())
 
-    code = textwrap.dedent(
+    CommandLine:
+        pytest tests/test_explicit_profile.py -s -k test_explicit_profile_with_in_code_enable
+    """
+    temp_dpath = ub.Path(tempfile.mkdtemp())
+
+    code = ub.codeblock(
         '''
         from line_profiler import profile
+        import ubelt as ub
+        print('')
+        print('')
+        print('start test')
+
+        print('profile = {}'.format(ub.urepr(profile, nl=1)))
+        print(f'profile._profile={profile._profile}')
+        print(f'profile.enabled={profile.enabled}')
 
         @profile
         def func1(a):
@@ -167,9 +186,15 @@ def test_explicit_profile_with_in_code_enable():
 
         profile.enable(output_prefix='custom_output')
 
+        print('profile = {}'.format(ub.urepr(profile, nl=1)))
+        print(f'profile._profile={profile._profile}')
+        print(f'profile.enabled={profile.enabled}')
+
         @profile
         def func2(a):
             return a + 1
+
+        print('func2 = {}'.format(ub.urepr(func2, nl=1)))
 
         profile.disable()
 
@@ -187,72 +212,95 @@ def test_explicit_profile_with_in_code_enable():
         func2(1)
         func3(1)
         func4(1)
-        ''').strip()
-    with ChDir(temp_dpath):
 
-        script_fpath = pathlib.Path('script.py')
+        profile._profile
+        ''')
+    with ub.ChDir(temp_dpath):
+
+        script_fpath = ub.Path('script.py')
         script_fpath.write_text(code)
 
         args = [sys.executable, os.fspath(script_fpath)]
-        proc = subprocess.run(args, stdout=PIPE, stderr=PIPE,
-                              universal_newlines=True)
+        proc = ub.cmd(args)
         print(proc.stdout)
         print(proc.stderr)
         proc.check_returncode()
 
+    print('Finished running script')
+
     output_fpath = (temp_dpath / 'custom_output.txt')
     raw_output = output_fpath.read_text()
+    print(f'Contents of {output_fpath}')
+    print(raw_output)
 
-    assert 'func1' not in raw_output
-    assert 'func2' in raw_output
-    assert 'func3' not in raw_output
-    assert 'func4' in raw_output
+    assert 'Function: func1' not in raw_output
+    assert 'Function: func2' in raw_output
+    assert 'Function: func3' not in raw_output
+    assert 'Function: func4' in raw_output
 
     assert output_fpath.exists()
     assert (temp_dpath / 'custom_output.lprof').exists()
-    shutil.rmtree(temp_dpath)
+    temp_dpath.delete()
 
 
-class ChDir:
+def test_explicit_profile_with_duplicate_functions():
     """
-    Context manager that changes the current working directory and then
-    returns you to where you were.
+    Test profiling duplicate functions with the explicit profiler
 
-    This is nearly the same as the stdlib :func:`contextlib.chdir`, with the
-    exception that it will do nothing if the input path is None (i.e. the user
-    did not want to change directories).
-
-    Args:
-        dpath (str | PathLike | None):
-            The new directory to work in.
-            If None, then the context manager is disabled.
-
-    SeeAlso:
-        :func:`contextlib.chdir`
+    CommandLine:
+        pytest -sv tests/test_explicit_profile.py -k test_explicit_profile_with_duplicate_functions
     """
-    def __init__(self, dpath):
-        self._context_dpath = dpath
-        self._orig_dpath = None
+    temp_dpath = ub.Path(tempfile.mkdtemp())
 
-    def __enter__(self):
-        """
-        Returns:
-            ChDir: self
-        """
-        if self._context_dpath is not None:
-            self._orig_dpath = os.getcwd()
-            os.chdir(self._context_dpath)
-        return self
+    code = ub.codeblock(
+        '''
+        from line_profiler import profile
 
-    def __exit__(self, ex_type, ex_value, ex_traceback):
-        """
-        Args:
-            ex_type (Type[BaseException] | None):
-            ex_value (BaseException | None):
-            ex_traceback (TracebackType | None):
+        @profile
+        def func1(a):
+            return a + 1
 
-        Returns:
-            bool | None
-        """
-        if self._context_dpath is not None:
-            os.chdir(self._orig_dpath)
+        @profile
+        def func2(a):
+            return a + 1
+
+        @profile
+        def func3(a):
+            return a + 1
+
+        @profile
+        def func4(a):
+            return a + 1
+
+        func1(1)
+        func2(1)
+        func3(1)
+        func4(1)
+        ''').strip()
+    with ub.ChDir(temp_dpath):
+
+        script_fpath = ub.Path('script.py')
+        script_fpath.write_text(code)
+
+        args = [sys.executable, os.fspath(script_fpath), '--line-profile']
+        proc = ub.cmd(args)
+        print(proc.stdout)
+        print(proc.stderr)
+        proc.check_returncode()
+
+    output_fpath = (temp_dpath / 'profile_output.txt')
+    raw_output = output_fpath.read_text()
+    print(raw_output)
+
+    assert 'Function: func1' in raw_output
+    assert 'Function: func2' in raw_output
+    assert 'Function: func3' in raw_output
+    assert 'Function: func4' in raw_output
+
+    assert output_fpath.exists()
+    assert (temp_dpath / 'profile_output.lprof').exists()
+    temp_dpath.delete()
+
+if __name__ == '__main__':
+    ...
+    test_simple_explicit_nonglobal_usage()

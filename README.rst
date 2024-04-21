@@ -1,16 +1,23 @@
 line_profiler and kernprof
 --------------------------
 
-|Pypi| |Downloads| |CircleCI| |GithubActions| |Codecov|
+|Pypi| |ReadTheDocs| |Downloads| |CircleCI| |GithubActions| |Codecov|
 
 
-NOTICE: This is the official ``line_profiler`` repository. The most recent
-version of `line-profiler <https://pypi.org/project/line_profiler/>`_ on pypi
-points to this repo. The original
-`line_profiler <https://github.com/rkern/line_profiler/>`_ package by
-`@rkern <https://github.com/rkern/>`_ is currently unmaintained. This fork
-seeks to simply maintain the original code so it continues to work in new
-versions of Python.
+This is the official ``line_profiler`` repository. The most recent version of
+`line-profiler <https://pypi.org/project/line_profiler/>`_ on pypi points to
+this repo.
+The original `line_profiler <https://github.com/rkern/line_profiler/>`_ package
+by `@rkern <https://github.com/rkern/>`_ is unmaintained.
+This fork is the official continuation of the project.
+
++---------------+--------------------------------------------+
+| Github        | https://github.com/pyutils/line_profiler   |
++---------------+--------------------------------------------+
+| Pypi          | https://pypi.org/project/line_profiler     |
++---------------+--------------------------------------------+
+| ReadTheDocs   | https://kernprof.readthedocs.io/en/latest/ |
++---------------+--------------------------------------------+
 
 ----
 
@@ -185,6 +192,9 @@ item to the extensions list::
         'line_profiler',
     ]
 
+Or explicitly call::
+
+    %load_ext line_profiler
 
 To get usage help for %lprun, use the standard IPython help mechanism::
 
@@ -289,6 +299,24 @@ built on ``cProfile`` or ``line_profiler`` are as follows:
 .. _spyder_line_profiler_plugin: https://github.com/spyder-ide/spyder-line-profiler
 .. _web_profiler_ui: https://github.com/mirecl/pprof
 
+
+Related Work
+============
+
+Check out these other Python profilers:
+
+* `Scalene <https://github.com/plasma-umass/scalene>`_: A CPU+GPU+memory sampling based profiler.
+
+* `PyInstrument  <https://github.com/joerick/pyinstrument>`_: A call stack profiler.
+
+* `Yappi <https://github.com/sumerc/yappi>`_: A tracing profiler that is multithreading, asyncio and gevent aware.
+
+* `profile / cProfile <https://docs.python.org/3/library/profile.html>`_: The builtin profile module.
+
+* `timeit <https://docs.python.org/3/library/timeit.html>`_: The builtin timeit module for profiling single statements.
+
+* `timerit <https://github.com/Erotemic/timerit>`_: A multi-statements alternative to the builtin ``timeit`` module.
+
 Frequently Asked Questions
 ==========================
 
@@ -296,22 +324,6 @@ Frequently Asked Questions
 
     I didn't manage to come up with a meaningful name, so I named it after
     myself.
-
-* Why not use hotshot instead of line_profile?
-
-    hotshot can do line-by-line timings, too. However, it is deprecated and may
-    disappear from the standard library. Also, it can take a long time to
-    process the results while I want quick turnaround in my workflows. hotshot
-    pays this processing time in order to make itself minimally intrusive to the
-    code it is profiling. Code that does network operations, for example, may
-    even go down different code paths if profiling slows down execution too
-    much. For my use cases, and I think those of many other people, their
-    line-by-line profiling is not affected much by this concern.
-
-* Why not allow using hotshot from kernprof.py?
-
-    I don't use hotshot, myself. I will accept contributions in this vein,
-    though.
 
 * The line-by-line timings don't add up when one profiled function calls
   another. What's up with that?
@@ -427,4 +439,5 @@ See `CHANGELOG`_.
    :target: https://pypistats.org/packages/line_profiler
 .. |GithubActions| image:: https://github.com/pyutils/line_profiler/actions/workflows/tests.yml/badge.svg?branch=main
    :target: https://github.com/pyutils/line_profiler/actions?query=branch%3Amain
-
+.. |ReadTheDocs| image:: https://readthedocs.org/projects/kernprof/badge/?version=latest
+    :target: http://kernprof.readthedocs.io/en/latest/

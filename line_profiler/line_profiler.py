@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""
+This module defines the core :class:`LineProfiler` class as well as methods to
+inspect its output. This depends on the :py:mod:`line_profiler._line_profiler`
+Cython backend.
+"""
 import pickle
 import functools
 import inspect
@@ -17,7 +22,7 @@ except ImportError as ex:
     )
 
 # NOTE: This needs to be in sync with ../kernprof.py and __init__.py
-__version__ = '4.1.0'
+__version__ = '4.1.2'
 
 
 def load_ipython_extension(ip):
@@ -46,7 +51,21 @@ def is_classmethod(f):
 
 
 class LineProfiler(CLineProfiler):
-    """ A profiler that records the execution times of individual lines.
+    """
+    A profiler that records the execution times of individual lines.
+
+    This provides the core line-profiler functionality.
+
+    Example:
+        >>> import line_profiler
+        >>> profile = line_profiler.LineProfiler()
+        >>> @profile
+        >>> def func():
+        >>>     x1 = list(range(10))
+        >>>     x2 = list(range(100))
+        >>>     x3 = list(range(1000))
+        >>> func()
+        >>> profile.print_stats()
     """
 
     def __call__(self, func):
@@ -267,11 +286,15 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     if stream is None:
         stream = sys.stdout
 
+    total_hits = sum(t[1] for t in timings)
     total_time = sum(t[3] for t in timings)
-    if stripzeros and total_time == 0:
+
+    if stripzeros and total_hits == 0:
         return
 
     if rich:
+        # References:
+        # https://github.com/Textualize/rich/discussions/3076
         try:
             from rich.syntax import Syntax
             from rich.highlighter import ReprHighlighter
@@ -464,6 +487,9 @@ def load_stats(filename):
 
 
 def main():
+    """
+    The line profiler CLI to view output from ``kernprof -l``.
+    """
     def positive_float(value):
         val = float(value)
         if val <= 0:
